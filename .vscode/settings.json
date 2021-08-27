@@ -1,0 +1,22 @@
+{
+	"cmake.configureOnOpen": false,
+	"cmake.configureEnvironment": { "projectName":"${workspaceFolderBasename}" },
+	
+	"cmake.statusbar.advanced": {
+		"debug" : {
+			"visibility" : "hidden"
+		},
+		"launch" : {
+			"visibility" : "hidden"
+		},
+        "build": {
+            "visibility": "hidden"
+        },
+        "buildTarget": {
+            "visibility": "hidden"
+        }
+    },
+    "cmake.buildBeforeRun": true,
+	"C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+	"C_Cpp.intelliSenseEngineFallback": "Enabled"
+}
