@@ -118,7 +118,7 @@ int main(int argc, const char* argv[]) {
 	m1.display();
 
 	while (1) {
-		sleep_ms(200);
+		sleep_ms(3000);
 		m1.display();
 	}
 

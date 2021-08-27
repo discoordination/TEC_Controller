@@ -12,6 +12,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 # For exceptions
 set(PICO_CXX_ENABLE_EXCEPTIONS 0)
+set(PICO_CXX_ENABLE_RTTI 1)
 
 set(LIB_PATH "C:/pico/my-pico/Mylibs")
 #variable_watch(LIB_PATH)

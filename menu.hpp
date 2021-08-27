@@ -8,8 +8,6 @@
 #include <memory>
 
 
-
-
 class BasicMenuItem {
 
 private:
@@ -65,7 +63,6 @@ public:
 
 private:
 	std::vector<std::shared_ptr<BasicMenuItem>> items;
-	std::string title;
 	const uint width;
 	const uint height;
 	Alignment alignment;
@@ -96,26 +93,10 @@ public:
 	// }
 
 
-	int downButton() {
-		if (index == height - 1)	// At bottom of screen.
-			if (screenTop + index < items.size()) { screenTop++; markAllDirty(); }// Move screen down.
-			else return index + screenTop; // do nothing.
-		else { items[index]->markDirty(); index++; items[index]->markDirty(); } // move index down.
-		return index + screenTop;
-	}
-
-	int upButton() { 
-		if (index <= 0) // if index at top.
-			if (screenTop == 0) return 0; // if screen at top do nothing.
-			else { screenTop--; markAllDirty(); } // move screen up.
-		else { items[index]->markDirty(); index--; items[index]->markDirty(); } // else move index up.
-		return index + screenTop;
-	}
-
-	int enterButton() { return 1; }
-	
-
 	void display();
+	int downButton();
+	int upButton();
+	int enterButton() { return 1; }
 };
 
 #endif // _MENU_HPP__
