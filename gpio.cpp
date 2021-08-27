@@ -98,8 +98,10 @@ void RotaryEncoder::triggered() {
 	state = ttable[state & 0xF][pinstate];
 	
 	if ((state & 0x30) == DIR_CW) {
+	//	std::cout << "CW\n";
 		cFunction();
 	} else if ((state & 0x30) == DIR_CCW) {
+	//	std::cout << "CCW\n";
 		ccFunction();
 	} 
 }

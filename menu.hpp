@@ -12,7 +12,7 @@ class BasicMenuItem {
 
 private:
 	std::string content; // Mutable so as it can be aligned by the menu.
-	bool dirty;
+	volatile bool dirty;
 
 protected:
 	BasicMenuItem(const std::string& content) : content(content), dirty(true) {}
@@ -63,17 +63,24 @@ public:
 
 private:
 	std::vector<std::shared_ptr<BasicMenuItem>> items;
-	const uint width;
-	const uint height;
-	Alignment alignment;
-	int index;
-	uint screenTop;
+	const uint width;	// width of screen in characters.
+	const uint height;	// height of screen in characters
+	const uint titleHeight;	// top of scrolling part of the screen below title.
+	Alignment alignment;	// Alignment of screen items.
+	volatile int index;			// index of selection on screen.
 	std::function<void(std::string, int yPos, bool inverted)> drawLineFunction;
+
+	uint screenTopItOffs; // top of scrolling section of screen offset.
+	uint screenBottomItOffs; // bottom of screen offset.
 
 	void align(std::string& tString, Alignment how);
 	void markAllDirty() { 
-		for (int i = screenTop; i < screenTop + height; ++i) { items[i]->markDirty(); }
+		for (int i = titleHeight; i < items.size(); ++i) { items[i]->markDirty(); }
 	}
+
+// Problem... doesn't know about rotary encoder.  better not... better disable paying attention.
+	bool ignoreRotary;
+	bool ignoreButton;
 
 public:
 // Initialize with vector of menu items shared_ptr.
@@ -86,17 +93,12 @@ public:
 			uint height,
 			std::function<void(std::string, int yPos, bool inverted)> drawLineFunc,
 			Alignment alignment = Alignment::Left,
-			int startIndex = 0  );
-
-	// Menu(std::vector<std::unique_ptr<BasicMenuItem>> items, uint width, uint height, std::function<void(std::string, int yPos, bool inverted)> drawLineFunc, Alignment alignment = Alignment::Left, int startIndex = 0) : 
-	// 			Menu("", items, width, height + 1, drawLineFunc, alignment, startIndex) {
-	// }
-
+			int startIndex = -1 );
 
 	void display();
 	int downButton();
 	int upButton();
-	int enterButton() { return 1; }
+	int pushButton();
 };
 
 #endif // _MENU_HPP__

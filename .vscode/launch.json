@@ -8,7 +8,8 @@
         {
             "name": "Pico Debug",
             "cwd": "${workspaceRoot}",
-            "executable": "${command:cmake.launchTargetPath}",
+            //"executable": "${command:cmake.launchTargetPath}",
+			"executable": "${workspaceRoot}/build/${workspaceFolderBasename}.elf",
             "request": "launch",
             "type": "cortex-debug",
             "servertype": "openocd",

@@ -6,16 +6,19 @@
 
 
 Menu::Menu(std::vector<std::shared_ptr<BasicMenuItem>> items, uint width, uint height, std::function<void(std::string, int yPos, bool inverted)> drawLineFunc, Alignment alignment, int startIndex) :
-						items(items),
-						width(width),
-						height(height),
-						alignment(alignment),
-						index(startIndex),  // needs to be first none title.
-						screenTop(0),
-						drawLineFunction(drawLineFunc) {
+				items(items),
+				width(width),
+				height(height),
+				alignment(alignment),
+				titleHeight(std::count_if(items.begin(), items.end(), [](auto& item)->bool{ return dynamic_cast<MenuTitle*>(item.get()) != nullptr; })),
+				index((startIndex < 0) ? titleHeight : startIndex),  
+				screenTopItOffs(titleHeight),
+				screenBottomItOffs(screenTopItOffs + height - screenTopItOffs),
+				drawLineFunction(drawLineFunc),
+				ignoreRotary(false),
+				ignoreButton(false) 	{
 
-	for (auto&& item : this->items) { align(item->getContent(), alignment); } 
-	
+	for (auto&& item : this->items) { align(item->getContent(), alignment); }
 }
 
 
@@ -62,32 +65,69 @@ void Menu::align(std::string& tString, Menu::Alignment how) {
 
 void Menu::display() {
 
-	std::cout << std::count_if(items.begin(), items.end(), [](auto& item)->bool{ return dynamic_cast<MenuTitle*>(item.get()) != nullptr; }) << std::endl;
+// Draw any title lines at the top.
+	for (auto titleIt = items.begin(); titleIt != items.begin() + titleHeight; ++titleIt) {
+		if ((*titleIt).get()->isDirty()) {
+			drawLineFunction((*titleIt)->getContent(), titleIt - items.begin(), false);
+			(*titleIt)->markClean();
+		}
+	}
 
-//	auto offset = (title != "");
-//	if (offset) drawLineFunction (title, 0, false);
-	for (auto itemIt = items.begin() + screenTop; (itemIt != items.begin() + screenTop + height && itemIt != items.end()); ++itemIt) {
-		auto& item = *itemIt;
-		if (item->isDirty()) {
-			drawLineFunction(item->getContent(), (itemIt - items.begin()), (itemIt - items.begin() == index));
-			item->markClean();
+	auto screenTopIt = std::next(std::begin(items), screenTopItOffs);
+	auto screenBottomIt = std::next(std::begin(items), screenBottomItOffs);
+
+	for (auto it = screenTopIt; it != screenBottomIt; ++it) {
+		auto& item = *(*it).get();
+		if (item.isDirty()) {
+			auto pos = it - screenTopIt + titleHeight;
+			drawLineFunction(item.getContent(), pos, pos == index);
+			item.markClean();
 		}
 	}
 }
 
+#warning still need to check if works with smaller menu than scrn... there may be a glitch
+
 int Menu::downButton() {
-	if (index == height - 1)	// At bottom of screen.
-		if (screenTop + index < items.size()) { screenTop++; markAllDirty(); }// Move screen down.
-		else return index + screenTop; // do nothing.
-	else { items[index]->markDirty(); index++; items[index]->markDirty(); } // move index down.
-	return index + screenTop;
+
+	if (ignoreRotary) return;
+
+	// index is above bottom. // and bottom isn't midway through the screen.
+	if (index < height - 1 && index < items.size()) {
+		items[screenTopItOffs + index - 1]->markDirty();
+		items[screenTopItOffs + index++]->markDirty();
+		//index++;
+	// if index is at bottom of screen and there are more items.
+	} else if (/*index == height - 1 && */screenBottomItOffs < items.size()) {
+		screenTopItOffs++;
+		screenBottomItOffs++;
+		markAllDirty();
+	}
+	display();
+	return 1;
 }
 
 
-int Menu::upButton() { 
-	if (index <= 0) // if index at top.
-		if (screenTop == 0) return 0; // if screen at top do nothing.
-		else { screenTop--; markAllDirty(); } // move screen up.
-	else { items[index]->markDirty(); index--; items[index]->markDirty(); } // else move index up.
-	return index + screenTop;
+int Menu::upButton() {
+
+	if (ignoreRotary) return 0;
+	
+// Scroll the index up if possibe.
+	if (index > titleHeight) {
+		items[screenTopItOffs + --index]->markDirty();
+		items[screenTopItOffs + index - 1]->markDirty();
+		//index--;
+	} else if (screenTopItOffs > titleHeight) {
+		screenTopItOffs--;
+		screenBottomItOffs--;
+		markAllDirty();
+	}
+	display();
+	return 0;
+}
+
+
+int Menu::pushButton() {
+	if (ignoreButton) return 0;
+	return 1;
 }

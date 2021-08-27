@@ -13,7 +13,7 @@ OBDISP oled;
 
 Menu m1 { 
 			std::vector<std::shared_ptr<BasicMenuItem>> { 
-						std::make_shared<MenuTitle>("My Menu"),
+						std::make_shared<MenuTitle>("MENU"),
 						std::make_shared<MenuButton>("One"),
 						std::make_shared<MenuButton>("Two"),
 						std::make_shared<MenuButton>("Three"),
@@ -107,7 +107,7 @@ int main(int argc, const char* argv[]) {
 
 	for(uint i{0}; i < 8; ++i) obdWriteString(&oled, 0, 0, i, (char*)"                ", FONT_8x8, false, true);
 	
-	sleep_ms(1500);
+	sleep_ms(750);
 
 	obdWriteString(&oled, 0, 0, 2, (char*)"Up and running.", FONT_8x8, false, true);
 
@@ -118,8 +118,9 @@ int main(int argc, const char* argv[]) {
 	m1.display();
 
 	while (1) {
-		sleep_ms(3000);
-		m1.display();
+		//sleep_ms();
+		//m1.display();
+		tight_loop_contents();
 	}
 
 	return 0;
