@@ -8,6 +8,10 @@
 #include <memory>
 
 
+#pragma message "TODO: Adapt to use different font sizes"
+#pragma message "TODO: Add different types of menu item such as setting adjust"
+
+
 class BasicMenuItem {
 
 private:
@@ -27,12 +31,16 @@ public:
 	void markDirty() { dirty = true; }
 	void markClean() { dirty = false; }
 	bool isDirty() const { return dirty; }
+
 };
 
 
 class MenuButton : public BasicMenuItem {
 
 	std::function<void()> onClick;
+	// you can choose these functions to do something funky but then call the onClick function.
+	std::function<void()> buttonDownFunction;
+	std::function<void()> buttonUpFunction;
 
 public:
 	MenuButton(const std::string& content, const std::function<void()>& onClick = {}) : 
@@ -98,7 +106,8 @@ public:
 	void display();
 	int downButton();
 	int upButton();
-	int pushButton();
+	int enterButtonDown();
+	int enterButtonUp();
 };
 
 #endif // _MENU_HPP__

@@ -17,12 +17,12 @@ Menu m1 {
 						std::make_shared<MenuButton>("One"),
 						std::make_shared<MenuButton>("Two"),
 						std::make_shared<MenuButton>("Three"),
-						std::make_shared<MenuButton>("Four"),
-						std::make_shared<MenuButton>("Five"),
-						std::make_shared<MenuButton>("Six"),
-						std::make_shared<MenuButton>("Seven"),
-						std::make_shared<MenuButton>("Eight"),
-						std::make_shared<MenuButton>("Nine") },
+						std::make_shared<MenuButton>("Four") },
+						//std::make_shared<MenuButton>("Five"),
+						//std::make_shared<MenuButton>("Six"),
+						//std::make_shared<MenuButton>("Seven"),
+						//std::make_shared<MenuButton>("Eight"),
+						//std::make_shared<MenuButton>("Nine") },
 			128 / 8,
 			8,
 			[](std::string str, int yPos, bool inv) { 
@@ -103,7 +103,7 @@ int main(int argc, const char* argv[]) {
 	init();
 	initDisplay(oled);
 	
-	RotaryEncoder rotary(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ m1.upButton(); }, [](){ m1.downButton(); });
+	RotaryEncoder rotary(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ m1.upButton(); }, [](){ m1.downButton(); },[](){ m1.enterButtonDown(); } , [](){m1.enterButtonUp(); });
 
 	for(uint i{0}; i < 8; ++i) obdWriteString(&oled, 0, 0, i, (char*)"                ", FONT_8x8, false, true);
 	

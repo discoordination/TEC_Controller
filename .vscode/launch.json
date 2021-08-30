@@ -8,6 +8,7 @@
         {
             "name": "Pico Debug",
             "cwd": "${workspaceRoot}",
+			//"cwd": "${command:cmake.launchTargetDirectory",
             //"executable": "${command:cmake.launchTargetPath}",
 			"executable": "${workspaceRoot}/build/${workspaceFolderBasename}.elf",
             "request": "launch",

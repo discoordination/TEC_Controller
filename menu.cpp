@@ -77,23 +77,30 @@ void Menu::display() {
 	auto screenBottomIt = std::next(std::begin(items), screenBottomItOffs);
 
 	for (auto it = screenTopIt; it != screenBottomIt; ++it) {
+
+		auto pos = it - screenTopIt + titleHeight;		// get scrn pos.
+
+		// Check that there is an item.
+		if (pos >= items.size()) {
+			drawLineFunction(std::string(width, ' '), pos, false);
+			continue;
+		}
+		// Draw if dirty.
 		auto& item = *(*it).get();
 		if (item.isDirty()) {
-			auto pos = it - screenTopIt + titleHeight;
 			drawLineFunction(item.getContent(), pos, pos == index);
 			item.markClean();
 		}
 	}
 }
 
-#warning still need to check if works with smaller menu than scrn... there may be a glitch
 
 int Menu::downButton() {
 
-	if (ignoreRotary) return;
+	if (ignoreRotary) return 0;
 
 	// index is above bottom. // and bottom isn't midway through the screen.
-	if (index < height - 1 && index < items.size()) {
+	if (index < height - 1 && index < items.size() - 1) {
 		items[screenTopItOffs + index - 1]->markDirty();
 		items[screenTopItOffs + index++]->markDirty();
 		//index++;
@@ -127,7 +134,12 @@ int Menu::upButton() {
 }
 
 
-int Menu::pushButton() {
+int Menu::enterButtonDown() {
+	if (ignoreButton) return 0;
+	return 1;
+}
+
+int Menu::enterButtonUp() {
 	if (ignoreButton) return 0;
 	return 1;
 }
