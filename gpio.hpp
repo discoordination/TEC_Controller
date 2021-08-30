@@ -27,30 +27,43 @@ public:
 	static void gpioInterruptHandler(uint gpio, uint32_t events);
 };
 
+
+
 #warning you need a button to make a button work such as you have a rotary encoder.
 class PushButton;
 
 class PushButtonGPIO : public InterruptableGPIO {
-	PushButton* parent;
-public:
-	PushButtonGPIO(uint8_t pin, PushButton* parent) : InterruptableGPIO(pin), parent(parent) {}
-	void triggered(uint gpio, uint32_t events) override;
-};
 
-
-class PushButton {
 public:
 	enum class ButtonState { NotPressed, Pressed };
 
 private:
-	PushButtonGPIO buttonGPIO;
+	PushButton* parent;
+	uint debounceMS;
+	repeating_timer t;
+	uint count;
 	ButtonState buttonState;
+
+	static bool debounceTimerCallback(repeating_timer_t *t);
+
+public:
+	PushButtonGPIO(uint8_t pin, PushButton* parent, uint debounceMS);
+	void triggered(uint gpio, uint32_t events) override;
+};
+
+
+
+
+class PushButton {
+
+private:
+	PushButtonGPIO buttonGPIO;
 	std::function<void()> buttonDownFunction;
 	std::function<void()> buttonUpFunction;
 
 public:
-	PushButton (uint gpio, std::function<void()> buttonDownFunction, std::function<void()> buttonUpFunction) : buttonGPIO(gpio, this), buttonState(ButtonState::NotPressed), buttonDownFunction(buttonDownFunction), buttonUpFunction(buttonUpFunction) {}
-	//void buttonPressed(uint gpio, uint32_t event);
+	PushButton (uint gpio, std::function<void()> buttonDownFunction, std::function<void()> buttonUpFunction, uint debounceMS);
+
 	void buttonUp();
 	void buttonDown();
 };
@@ -61,7 +74,7 @@ class RotaryEncoder;
 class RotaryEncoderEncoderGPIO : public InterruptableGPIO {
 	RotaryEncoder* parent;
 public:
-	RotaryEncoderEncoderGPIO(uint8_t pin, RotaryEncoder* parent) : InterruptableGPIO(pin), parent(parent) {}
+	RotaryEncoderEncoderGPIO(uint8_t pin, RotaryEncoder* parent);
 	void triggered(uint gpio, uint32_t events) override;
 };
 

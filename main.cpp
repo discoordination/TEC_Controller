@@ -70,20 +70,6 @@ void initDisplay(OBDISP& oled) {
 
 
 void initInputs() {
-
-	gpio_set_dir(PIN::ENCODER_PIN1, false);
-	gpio_set_input_hysteresis_enabled(PIN::ENCODER_PIN1, true);
-	gpio_set_dir(PIN::ENCODER_PIN2, false);
-	gpio_set_input_hysteresis_enabled(PIN::ENCODER_PIN2, true);
-	gpio_set_dir(PIN::ENCODER_BUTTON_PIN, false);
-	gpio_set_input_hysteresis_enabled(PIN::ENCODER_BUTTON_PIN, true);
-
-	
-	gpio_set_irq_enabled_with_callback(PIN::ENCODER_PIN1, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
-
-	gpio_set_irq_enabled_with_callback(PIN::ENCODER_PIN2, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
-
-	gpio_set_irq_enabled_with_callback(PIN::ENCODER_BUTTON_PIN, GPIO_IRQ_EDGE_FALL, true, &InterruptableGPIO::gpioInterruptHandler);
 }
 
 

@@ -7,10 +7,13 @@
 #include <bitset>
 
 
+// InterruptableGPIO
+
 InterruptableGPIO::InterruptableGPIO(uint8_t pin) : 
 			pin(pin),
 			enabled(true) {
 	interruptableGPIOs.push_back(this);
+	gpio_set_dir(pin, false);
 }
 
 
@@ -27,7 +30,6 @@ void InterruptableGPIO::gpioInterruptHandler(uint gpio, uint32_t events) {
 		auto interruptableGPIO = *it;
 		if (interruptableGPIO->enabled && gpio == interruptableGPIO->pin) {
 			interruptableGPIO->triggered(gpio, events);
-			//add_alarm_in_ms(IO::DEBOUNCE_MS, &InterruptableGPIO::reenableGPIOCallback, &interruptableGPIO->pin, true);
 		}
  	}
 }
@@ -44,7 +46,18 @@ int64_t InterruptableGPIO::reenableGPIOCallback(alarm_id_t id, void* userData) {
 }
 
 
-void RotaryEncoderEncoderGPIO::triggered(uint gpio, uint32_t events) { parent->triggered(gpio, events); }
+
+
+// RotaryEncoderEncoderGPIO
+
+RotaryEncoderEncoderGPIO::RotaryEncoderEncoderGPIO(uint8_t pin, RotaryEncoder* parent) : InterruptableGPIO(pin), parent(parent) {
+
+	gpio_set_irq_enabled_with_callback(pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
+}
+
+void RotaryEncoderEncoderGPIO::triggered(uint gpio, uint32_t events) { 
+	parent->triggered(gpio, events); 
+}
 
 #warning This is where we will differentiate between up and down functions.
 #warning Need to implement some debounce here.
@@ -60,18 +73,69 @@ void RotaryEncoderEncoderGPIO::triggered(uint gpio, uint32_t events) { parent->t
 // 	}
 // }
 
-void PushButtonGPIO::triggered(uint gpio, uint32_t events) {
-	if (events == GPIO_IRQ_EDGE_FALL) {
-		gpio_set_irq_enabled(gpio, GPIO_IRQ_EDGE_FALL, false);
-		gpio_set_irq_enabled(gpio, GPIO_IRQ_EDGE_RISE, true);
-		parent->buttonDown();
-	} else if (events == GPIO_IRQ_EDGE_RISE) {
-		gpio_set_irq_enabled(gpio, GPIO_IRQ_EDGE_RISE, false);
-		gpio_set_irq_enabled(gpio, GPIO_IRQ_EDGE_FALL, true);
-		parent->buttonUp();
-	}
+
+
+
+// PushButtonGPIO
+
+PushButtonGPIO::PushButtonGPIO(uint8_t pin, PushButton* parent, uint debounceMS) : InterruptableGPIO(pin), parent(parent), debounceMS(debounceMS), t(), count(0), buttonState(ButtonState::NotPressed) {
+
+	gpio_set_irq_enabled_with_callback(pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
 }
 
+
+bool PushButtonGPIO::debounceTimerCallback(repeating_timer_t* t) {
+
+	PushButtonGPIO* gpio = static_cast<PushButtonGPIO*>(t->user_data);
+
+	if (gpio_get(gpio->pin) == 0 && gpio->buttonState == ButtonState::Pressed) {
+		if (++gpio->count == gpio->debounceMS) {
+			gpio->count = 0;
+			gpio_set_irq_enabled_with_callback(gpio->pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
+			gpio->parent->buttonDown();
+			return false;
+		}
+	} else if (gpio_get(gpio->pin) == 1 && gpio->buttonState == ButtonState::NotPressed) {
+		if (++gpio->count == gpio->debounceMS) {
+			gpio->count = 0;
+			gpio_set_irq_enabled_with_callback(gpio->pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
+			gpio->parent->buttonUp();
+			return false;
+		}
+	} else if (gpio->buttonState == ButtonState::Pressed) {
+		gpio->buttonState == ButtonState::NotPressed;
+		gpio_set_irq_enabled_with_callback(gpio->pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
+		return false;
+	} else {
+		gpio->buttonState == ButtonState::Pressed;
+		gpio_set_irq_enabled_with_callback(gpio->pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
+		return false;
+	}
+	return true;
+} 
+
+
+// tell it the button state is what it is.  turn off the interrupt and set an alarm 
+void PushButtonGPIO::triggered(uint gpio, uint32_t events) {
+
+	gpio_set_irq_enabled(pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, false);
+
+	if (events == GPIO_IRQ_EDGE_FALL) {
+		buttonState = ButtonState::Pressed;
+	} else if (events == GPIO_IRQ_EDGE_RISE) {
+		buttonState = ButtonState::NotPressed;
+	}
+	
+	add_repeating_timer_ms(1, debounceTimerCallback, this, &t);
+}
+
+
+
+
+// PushButton
+
+PushButton::PushButton (uint gpio, std::function<void()> buttonDownFunction, std::function<void()> buttonUpFunction, uint debounceMS = 5) : buttonGPIO(gpio, this, debounceMS), buttonDownFunction(buttonDownFunction), buttonUpFunction(buttonUpFunction) {
+}
 
 void PushButton::buttonUp() {
 	std::cout << "button up detected.\n";
@@ -81,6 +145,10 @@ void PushButton::buttonDown() {
 	std::cout << "button down detected.\n";
 }
 
+
+
+
+// RotaryEncoder
 
 constexpr uint8_t DIR_NONE		{ 0x00 };
 constexpr uint8_t DIR_CW		{ 0x10 };
@@ -117,7 +185,6 @@ const std::array<std::array<uint8_t, 4>, 7> ttable {
 RotaryEncoder::RotaryEncoder(const uint8_t p1, const uint8_t p2, const uint8_t buttonPin, std::function<void()> ccFunction, std::function<void()> cFunction, std::function<void()> butDownFunc, std::function<void()> butUpFunc) : 
 					p1(p1, this),
 					p2(p2, this),
-					//button(buttonPin, this),
 					state(R_START),
 					ccFunction(ccFunction),
 					cFunction(cFunction),
