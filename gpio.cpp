@@ -12,7 +12,7 @@
 InterruptableGPIO::InterruptableGPIO(uint8_t pin) : 
 			pin(pin),
 			enabled(true) {
-	interruptableGPIOs.push_back(this);
+	interruptableGPIOs[pin] = this;
 	gpio_set_dir(pin, false);
 }
 
@@ -27,7 +27,7 @@ InterruptableGPIO& InterruptableGPIO::operator=(InterruptableGPIO&& other) {
 void InterruptableGPIO::gpioInterruptHandler(uint gpio, uint32_t events) {
 
 	for (auto it = interruptableGPIOs.begin(); it != interruptableGPIOs.end(); ++it) {
-		auto interruptableGPIO = *it;
+		auto& interruptableGPIO = it->second;
 		if (interruptableGPIO->enabled && gpio == interruptableGPIO->pin) {
 			interruptableGPIO->triggered(gpio, events);
 		}
@@ -35,15 +35,15 @@ void InterruptableGPIO::gpioInterruptHandler(uint gpio, uint32_t events) {
 }
 
 
-int64_t InterruptableGPIO::reenableGPIOCallback(alarm_id_t id, void* userData) {
+// int64_t InterruptableGPIO::reenableGPIOCallback(alarm_id_t id, void* userData) {
 
-	auto pinPtr = static_cast<uint8_t*>(userData);
-	auto pin = *pinPtr;
-	auto& vec = InterruptableGPIO::interruptableGPIOs;
-	auto result = std::find_if(vec.begin(), vec.end(), [pin](auto& gp) {return gp->pin == pin;});
-	if (result != std::end(vec)) { (*result)->enabled = true; gpio_set_irq_enabled(pin, GPIO_IRQ_EDGE_FALL, true); }
-	return 0;
-}
+// 	auto pinPtr = static_cast<uint8_t*>(userData);
+// 	auto pin = *pinPtr;
+// 	auto& vec = InterruptableGPIO::interruptableGPIOs;
+// 	auto result = std::find_if(vec.begin(), vec.end(), [pin](auto& gp) { return gp.second->pin == pin;});
+// 	if (result != std::end(vec)) { (*result).second->enabled = true; gpio_set_irq_enabled(pin, GPIO_IRQ_EDGE_FALL, true); }
+// 	return 0;
+// }
 
 
 
@@ -59,28 +59,14 @@ void RotaryEncoderEncoderGPIO::triggered(uint gpio, uint32_t events) {
 	parent->triggered(gpio, events); 
 }
 
-#warning This is where we will differentiate between up and down functions.
-#warning Need to implement some debounce here.
-// void RotaryEncoderPushButtonGPIO::triggered(uint gpio, uint32_t events) {
-// 	if (events == GPIO_IRQ_EDGE_FALL) {
-// 		gpio_set_irq_enabled(gpio, GPIO_IRQ_EDGE_FALL, false);
-// 		gpio_set_irq_enabled(gpio, GPIO_IRQ_EDGE_RISE, true);
-// 		parent->buttonPressed();
-// 	} else if (events == GPIO_IRQ_EDGE_RISE) {
-// 		gpio_set_irq_enabled(gpio, GPIO_IRQ_EDGE_RISE, false);
-// 		gpio_set_irq_enabled(gpio, GPIO_IRQ_EDGE_FALL, true);
-// 		parent->buttonUp();
-// 	}
-// }
-
-
 
 
 // PushButtonGPIO
 
 PushButtonGPIO::PushButtonGPIO(uint8_t pin, PushButton* parent, uint debounceMS) : InterruptableGPIO(pin), parent(parent), debounceMS(debounceMS), t(), count(0), buttonState(ButtonState::NotPressed) {
 
-	gpio_set_irq_enabled_with_callback(pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
+	gpio_set_irq_enabled_with_callback(pin, GPIO_IRQ_EDGE_FALL, true, &InterruptableGPIO::gpioInterruptHandler);
+	gpio_set_irq_enabled(pin, GPIO_IRQ_EDGE_RISE, false);
 }
 
 
@@ -91,14 +77,14 @@ bool PushButtonGPIO::debounceTimerCallback(repeating_timer_t* t) {
 	if (gpio_get(gpio->pin) == 0 && gpio->buttonState == ButtonState::Pressed) {
 		if (++gpio->count == gpio->debounceMS) {
 			gpio->count = 0;
-			gpio_set_irq_enabled_with_callback(gpio->pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
+			gpio_set_irq_enabled_with_callback(gpio->pin, GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
 			gpio->parent->buttonDown();
 			return false;
 		}
 	} else if (gpio_get(gpio->pin) == 1 && gpio->buttonState == ButtonState::NotPressed) {
 		if (++gpio->count == gpio->debounceMS) {
 			gpio->count = 0;
-			gpio_set_irq_enabled_with_callback(gpio->pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
+			gpio_set_irq_enabled_with_callback(gpio->pin, GPIO_IRQ_EDGE_FALL, true, &InterruptableGPIO::gpioInterruptHandler);
 			gpio->parent->buttonUp();
 			return false;
 		}
@@ -134,17 +120,30 @@ void PushButtonGPIO::triggered(uint gpio, uint32_t events) {
 
 // PushButton
 
-PushButton::PushButton (uint gpio, std::function<void()> buttonDownFunction, std::function<void()> buttonUpFunction, uint debounceMS = 5) : buttonGPIO(gpio, this, debounceMS), buttonDownFunction(buttonDownFunction), buttonUpFunction(buttonUpFunction) {
-}
+PushButton::PushButton (uint gpio, std::function<void()> buttonDownFunction, std::function<void()> buttonUpFunction, std::function<void()> buttonLongPressFunction = {}, uint longPressTime = 1500, uint debounceMS = 5) : buttonGPIO(gpio, this, debounceMS), buttonDownFunction(buttonDownFunction), buttonUpFunction(buttonUpFunction), buttonLongPressFunction(buttonLongPressFunction), longPressTime(longPressTime) {}
+
 
 void PushButton::buttonUp() {
-	std::cout << "button up detected.\n";
+	if (buttonLongPressFunction) {
+		cancel_alarm(longPressAlarmID);
+	}
+	buttonUpFunction();	
 }
 
 void PushButton::buttonDown() {
-	std::cout << "button down detected.\n";
+	if (buttonLongPressFunction)
+		longPressAlarmID = add_alarm_in_ms(longPressTime, &longPressCallback, this, true);
+	buttonDownFunction();
 }
 
+int64_t PushButton::longPressCallback(alarm_id_t id, void* userData) {
+	auto button = static_cast<PushButton*>(userData);
+	//it hits the next menu and wants to do button up.
+	//gpio_set_irq_enabled(button->buttonGPIO.pin, GPIO_IRQ_EDGE_RISE, false);
+
+	button->buttonLongPressFunction();
+	return 0;
+}
 
 
 
@@ -182,17 +181,17 @@ const std::array<std::array<uint8_t, 4>, 7> ttable {
 };
 
 
-RotaryEncoder::RotaryEncoder(const uint8_t p1, const uint8_t p2, const uint8_t buttonPin, std::function<void()> ccFunction, std::function<void()> cFunction, std::function<void()> butDownFunc, std::function<void()> butUpFunc) : 
+RotaryEncoder::RotaryEncoder(const uint8_t p1, const uint8_t p2, const uint8_t buttonPin, std::function<void()> ccFunction, std::function<void()> cFunction, std::function<void()> butDownFunc, std::function<void()> butUpFunc, std::function<void()> longPressFunc = {}) : 
 					p1(p1, this),
 					p2(p2, this),
 					state(R_START),
 					ccFunction(ccFunction),
 					cFunction(cFunction),
-					button(buttonPin, butDownFunc, butUpFunc)
+					button(buttonPin, butDownFunc, butUpFunc, longPressFunc)
 {}
 
 RotaryEncoder::RotaryEncoder(uint8_t p1, uint8_t p2, std::function<void()> ccFunction, std::function<void()> cFunction) : 
-		RotaryEncoder(p1, p2, 255, ccFunction, cFunction, {}, {})
+		RotaryEncoder(p1, p2, 255, ccFunction, cFunction, {}, {}, {})
 {}
 
 
@@ -202,18 +201,9 @@ void RotaryEncoder::triggered(uint gpio, uint32_t events) {
 	state = ttable[state & 0xF][pinstate];
 	
 	if ((state & 0x30) == DIR_CW) {
-	//	std::cout << "CW\n";
 		cFunction();
 	} else if ((state & 0x30) == DIR_CCW) {
-	//	std::cout << "CCW\n";
 		ccFunction();
 	}
 }
 
-void RotaryEncoder::buttonDown() {
-	std::cout << "Button down\n";
-}
-
-void RotaryEncoder::buttonUp() {
-	std::cout << "Button up\n";
-}

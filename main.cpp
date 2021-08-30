@@ -1,6 +1,7 @@
 #include "main.hpp"
 #include "hardware/pwm.h"
 #include "hardware/i2c.h"
+#include "hardware/irq.h"
 #include "menu.hpp"
 #include "gpio.hpp"
 
@@ -10,11 +11,21 @@
 #include <any>
 
 OBDISP oled;
+uint8_t bbuffer[1024];
+
+void runM2();
+
+enum class ShownMenu { menu1, menu2 };
+ShownMenu shownMenu = ShownMenu::menu1;
+
+
+void showMenu2();
+
 
 Menu m1 { 
 			std::vector<std::shared_ptr<BasicMenuItem>> { 
 						std::make_shared<MenuTitle>("MENU"),
-						std::make_shared<MenuButton>("One"),
+						std::make_shared<MenuButton>("One", showMenu2),
 						std::make_shared<MenuButton>("Two"),
 						std::make_shared<MenuButton>("Three"),
 						std::make_shared<MenuButton>("Four") },
@@ -28,8 +39,39 @@ Menu m1 {
 			[](std::string str, int yPos, bool inv) { 
 				obdWriteString(&oled, false, 0, yPos, const_cast<char*>(str.c_str()), FONT_8x8, inv, true);
 				},
+			[](int x1, int y1, int x2, int y2, uint8_t colour, uint8_t filled) {
+				obdRectangle(&oled, x1, y1, x2, y2, colour, filled);
+			},
+			[](){
+				obdDumpBuffer(&oled, bbuffer);
+			},
 			Menu::Alignment::Center 
 		};
+
+void showMenu2() { 
+	m1.endMenu(); 
+	shownMenu = ShownMenu::menu2;
+}
+
+Menu m2 {
+		std::vector<std::shared_ptr<BasicMenuItem>> {
+			std::make_shared<MenuTitle>("MENU 2"),
+			std::make_shared<MenuButton>("Say Hi"),
+			std::make_shared<MenuButton>("Say Ho"),
+			std::make_shared<MenuButton>("Say No") },
+		128 / 8,
+		8,
+		[](std::string str, int yPos, bool inv) { 
+			obdWriteString(&oled, false, 0, yPos, const_cast<char*>(str.c_str()), FONT_8x8, inv, true);
+		},
+		[](int x1, int y1, int x2, int y2, uint8_t colour, uint8_t filled) {
+			obdRectangle(&oled, x1, y1, x2, y2, colour, filled);
+		},
+		[](){
+			obdDumpBuffer(&oled, bbuffer);
+		},
+		Menu::Alignment::Center 
+};
 
 
 struct Setting {};
@@ -65,7 +107,9 @@ void initI2C() {
 void initDisplay(OBDISP& oled) {
 
 	while ( obdI2CInit(&oled, OLED::_128x64, OLED::ADDRESS, OLED::FLIP_180, OLED::INVERT, OLED::USE_HW_I2C, OLED::SDA_PIN, OLED::SCL_PIN, OLED::RESET_PIN, I2C::I2CFREQ, i2c1) < 0);
-	//obdSetBackBuffer(&oled, bbuffer);
+	obdSetBackBuffer(&oled, bbuffer);
+	// sometimes oled isn't flipped so flip it again.
+	if (!oled.flip) oled.flip;
 }
 
 
@@ -89,8 +133,6 @@ int main(int argc, const char* argv[]) {
 	init();
 	initDisplay(oled);
 	
-	RotaryEncoder rotary(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ m1.upButton(); }, [](){ m1.downButton(); },[](){ m1.enterButtonDown(); } , [](){m1.enterButtonUp(); });
-
 	for(uint i{0}; i < 8; ++i) obdWriteString(&oled, 0, 0, i, (char*)"                ", FONT_8x8, false, true);
 	
 	sleep_ms(750);
@@ -101,12 +143,21 @@ int main(int argc, const char* argv[]) {
 	for(uint i{0}; i < 8; ++i) obdWriteString(&oled, 0, 0, i, (char*)"                ",FONT_8x8, false, true); 
 
 
-	m1.display();
 
 	while (1) {
-		//sleep_ms();
-		//m1.display();
-		tight_loop_contents();
+		volatile int x = 10;
+		switch (shownMenu) {
+			case ShownMenu::menu1: {
+				RotaryEncoder rotary(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ m1.upButton(); }, [](){ m1.downButton(); },[](){ m1.enterButtonDown(); } , [](){ m1.enterButtonUp(); }, [](){});
+				m1();
+				break;
+			}
+			case ShownMenu::menu2: {
+				RotaryEncoder rotary(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ m2.upButton(); }, [](){ m2.downButton(); },[](){ m2.enterButtonDown(); } , [](){m2.enterButtonUp(); }, [](){ shownMenu = ShownMenu::menu1; m2.endMenu(); });
+				m2();
+				break;
+			}
+		}
 	}
 
 	return 0;

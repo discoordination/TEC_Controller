@@ -5,20 +5,26 @@
 #include "pico/stdlib.h"
 #include "hardware/irq.h"
 
-#include <vector>
+//#include <vector>
+#include <map>
 #include <functional>
+#include <memory>
 #include <iostream>
+
+
+
 
 class InterruptableGPIO {
 	
-	inline static std::vector<InterruptableGPIO*> interruptableGPIOs;
+	inline static std::map<uint, InterruptableGPIO*> interruptableGPIOs;
 	virtual void triggered(uint gpio, uint32_t events) = 0;
 
 protected:
 	bool enabled;
+	InterruptableGPIO(uint8_t pin);
+	~InterruptableGPIO() { interruptableGPIOs.erase(pin); };
 
 public:
-	InterruptableGPIO(uint8_t pin);
 	InterruptableGPIO& operator=(InterruptableGPIO&& other);
 	
 	uint8_t pin;
@@ -29,7 +35,6 @@ public:
 
 
 
-#warning you need a button to make a button work such as you have a rotary encoder.
 class PushButton;
 
 class PushButtonGPIO : public InterruptableGPIO {
@@ -42,12 +47,12 @@ private:
 	uint debounceMS;
 	repeating_timer t;
 	uint count;
-	ButtonState buttonState;
 
 	static bool debounceTimerCallback(repeating_timer_t *t);
 
 public:
 	PushButtonGPIO(uint8_t pin, PushButton* parent, uint debounceMS);
+	ButtonState buttonState;
 	void triggered(uint gpio, uint32_t events) override;
 };
 
@@ -60,9 +65,13 @@ private:
 	PushButtonGPIO buttonGPIO;
 	std::function<void()> buttonDownFunction;
 	std::function<void()> buttonUpFunction;
+	std::function<void()> buttonLongPressFunction;
 
+	uint longPressTime;
+	alarm_id_t longPressAlarmID;
+	static int64_t longPressCallback(alarm_id_t id, void* userData);
 public:
-	PushButton (uint gpio, std::function<void()> buttonDownFunction, std::function<void()> buttonUpFunction, uint debounceMS);
+	PushButton (uint gpio, std::function<void()> buttonDownFunction, std::function<void()> buttonUpFunction, std::function<void()> buttonLongPressFunction, uint longPressTime, uint debounceMS);
 
 	void buttonUp();
 	void buttonDown();
@@ -80,16 +89,6 @@ public:
 
 
 
-// class RotaryEncoderPushButtonGPIO : public PushButtonGPIO {
-// 	PushButton* parent;
-// public:
-// 	RotaryEncoderPushButtonGPIO(uint8_t pin, PushButton* parent) : 
-// 									PushButtonGPIO(pin, parent) {}
-// 	void triggered(uint gpio, uint32_t events) override;
-// };
-
-
-#warning you are adding a push button to the Rotary Encoder
 class RotaryEncoder {
 
 	RotaryEncoderEncoderGPIO p1;
@@ -101,11 +100,12 @@ class RotaryEncoder {
 	std::function<void()> cFunction;
 
 public:
-	RotaryEncoder(const uint8_t p1, const uint8_t p2, const uint8_t buttonPin, std::function<void()> ccFunction, std::function<void()> cFunction, std::function<void()> butDownFunc, std::function<void()> butUpFunc);
+	RotaryEncoder(const uint8_t p1, const uint8_t p2, const uint8_t buttonPin, std::function<void()> ccFunction, std::function<void()> cFunction, std::function<void()> butDownFunc, std::function<void()> butUpFunc, std::function<void()> longPressFunc);
 
 	RotaryEncoder(const uint8_t p1, const uint8_t p2, std::function<void()> ccFunction, std::function<void()> cFunction);
 
 	void triggered(uint gpio, uint32_t events);
+
 	void buttonDown();
 	void buttonUp();
 };

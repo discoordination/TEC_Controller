@@ -30,7 +30,7 @@ namespace OLED {
 	inline constexpr bool FLIP_180    { true };
 	inline constexpr bool INVERT      { false };
 	inline constexpr bool USE_HW_I2C  { true };
-	inline constexpr uint8_t _128x64  { 1 };
+	inline constexpr uint8_t _128x64  { 3 };
 }
 
 namespace CONSTANT {

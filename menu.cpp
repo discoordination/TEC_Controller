@@ -5,7 +5,7 @@
 #include <iostream>
 
 
-Menu::Menu(std::vector<std::shared_ptr<BasicMenuItem>> items, uint width, uint height, std::function<void(std::string, int yPos, bool inverted)> drawLineFunc, Alignment alignment, int startIndex) :
+Menu::Menu(std::vector<std::shared_ptr<BasicMenuItem>> items, uint width, uint height, std::function<void(std::string, int yPos, bool inverted)> drawLineFunc, std::function<void(int x1, int y1, int x2, int y2, uint8_t colour, uint8_t filled)> drawRecFunc, std::function<void()> dumpBufferFunc, Alignment alignment, int startIndex) :
 				items(items),
 				width(width),
 				height(height),
@@ -15,12 +15,30 @@ Menu::Menu(std::vector<std::shared_ptr<BasicMenuItem>> items, uint width, uint h
 				screenTopItOffs(titleHeight),
 				screenBottomItOffs(screenTopItOffs + height - screenTopItOffs),
 				drawLineFunction(drawLineFunc),
+				drawRectangleFunction(drawRecFunc),
+				dumpBufferFunction(dumpBufferFunc),
 				ignoreRotary(false),
-				ignoreButton(false) 	{
+				ignoreButton(false),
+				wantsToClose(false) 	{
 
 	for (auto&& item : this->items) { align(item->getContent(), alignment); }
 }
 
+void Menu::operator()() {
+
+	wantsToClose = false;
+	ignoreRotary = false;
+	ignoreButton = false;
+
+	std::for_each(items.begin(), items.end(), [](std::shared_ptr<BasicMenuItem> item){ item->markDirty(); });
+
+	display();
+	
+	// ie back button hit or something.
+	while (!wantsToClose) {
+		tight_loop_contents();
+	}
+}
 
 
 // I believe align works but need to test right alignment.
@@ -135,11 +153,25 @@ int Menu::upButton() {
 
 
 int Menu::enterButtonDown() {
+
 	if (ignoreButton) return 0;
+	ignoreRotary  = true;
+	drawLineFunction(items[index]->getContent(), index, false);
+	drawRectangleFunction(1, height * index, (width * 8) - 1, height * (index + 1) - 1, 255, false); 
+	//drawRectangleFunction(3, (height * (index - 1)) - 2, ((width * 8) - 1)-2, (height * index) +2, 255, false);
+	dumpBufferFunction();
 	return 1;
 }
 
 int Menu::enterButtonUp() {
+
 	if (ignoreButton) return 0;
+	ignoreRotary = false;
+	drawLineFunction(items[index]->getContent(), index, true);
+	for (uint i = 0; i < 7; ++i) {
+		drawLineFunction(items[index]->getContent(), index, i % 2 == 0);
+		busy_wait_ms(75);
+	}
+	dynamic_cast<MenuButton*>(items[index].get())->operator()();
 	return 1;
 }

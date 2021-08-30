@@ -49,6 +49,7 @@ public:
 	{}
 	bool selectable() const override { return true; }
 	bool scrollable() const override { return true; }
+	void operator()() const {  if (onClick) onClick(); }
 };
 
 class MenuTitle : public BasicMenuItem {
@@ -62,6 +63,9 @@ public:
 };
 
 
+
+
+
 class Menu {
 
 public:
@@ -70,6 +74,8 @@ public:
 	};
 
 private:
+	void display();
+
 	std::vector<std::shared_ptr<BasicMenuItem>> items;
 	const uint width;	// width of screen in characters.
 	const uint height;	// height of screen in characters
@@ -77,9 +83,13 @@ private:
 	Alignment alignment;	// Alignment of screen items.
 	volatile int index;			// index of selection on screen.
 	std::function<void(std::string, int yPos, bool inverted)> drawLineFunction;
+	std::function<void(int x1, int y1, int x2, int y2, uint8_t colour, uint8_t filled)> drawRectangleFunction;
+	std::function<void()> dumpBufferFunction;
 
 	uint screenTopItOffs; // top of scrolling section of screen offset.
 	uint screenBottomItOffs; // bottom of screen offset.
+
+	bool wantsToClose;
 
 	void align(std::string& tString, Alignment how);
 	void markAllDirty() { 
@@ -89,6 +99,9 @@ private:
 // Problem... doesn't know about rotary encoder.  better not... better disable paying attention.
 	bool ignoreRotary;
 	bool ignoreButton;
+
+	void drawButtonPressed();
+	void drawButtonUnpressed();
 
 public:
 // Initialize with vector of menu items shared_ptr.
@@ -100,14 +113,21 @@ public:
 		 	uint width,
 			uint height,
 			std::function<void(std::string, int yPos, bool inverted)> drawLineFunc,
+			std::function<void(int x1, int y1, int x2, int y2, uint8_t colour, uint8_t filled)> drawRecFunc,
+			std::function<void()> dumpBufferFunc = {},
 			Alignment alignment = Alignment::Left,
 			int startIndex = -1 );
 
-	void display();
 	int downButton();
 	int upButton();
 	int enterButtonDown();
 	int enterButtonUp();
+	void operator()();
+	void endMenu() { wantsToClose = true; }
 };
+
+
+
+
 
 #endif // _MENU_HPP__
