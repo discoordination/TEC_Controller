@@ -7,53 +7,53 @@
 
 #include <iostream>
 #include <vector>
+#include <functional>
 #include <bitset>
+#include <memory>
 #include <any>
 
 OBDISP oled;
 uint8_t bbuffer[1024];
 
-void runM2();
 
-enum class ShownMenu { menu1, menu2 };
-ShownMenu shownMenu = ShownMenu::menu1;
+const std::function<void(std::string, int, bool)> Menu::drawLineFunction { 
+	[](std::string str, int yPos, bool inv){ 
+ 		obdWriteString(&oled, false, 0, yPos, const_cast<char*>(str.c_str()), FONT_8x8, inv, true); 
+}};
+
+const std::function<void(int,int,int,int,uint8_t,uint8_t)> Menu::drawRectangleFunction {
+	[](int x1, int y1, int x2, int y2, uint8_t colour, uint8_t filled) {
+ 		obdRectangle(&oled, x1, y1, x2, y2, colour, filled);
+}};
+
+const std::function<void()> Menu::dumpBufferFunction {
+		[]() { obdDumpBuffer(&oled, bbuffer);
+}};
 
 
-void showMenu2();
+struct Settings {};
+
+std::unique_ptr<Menu> currentMenu;
+//Menu* currentMenu;
+
+std::vector<Menu> menus {
+	Menu { 
+		std::vector<std::shared_ptr<BasicMenuItem>> { 
+					std::make_shared<MenuTitle>("MENU"),
+					std::make_shared<MenuButton>("One", [](){
+						currentMenu->closeMenu();
+						currentMenu = std::make_unique<Menu>(menus[1]);
+					}),
+					std::make_shared<MenuButton>("Two"),
+					std::make_shared<MenuButton>("Three"),
+					std::make_shared<MenuButton>("Four") },
+		128 / 8,
+		8,
+		Menu::Alignment::Center 
+	},
 
 
-Menu m1 { 
-			std::vector<std::shared_ptr<BasicMenuItem>> { 
-						std::make_shared<MenuTitle>("MENU"),
-						std::make_shared<MenuButton>("One", showMenu2),
-						std::make_shared<MenuButton>("Two"),
-						std::make_shared<MenuButton>("Three"),
-						std::make_shared<MenuButton>("Four") },
-						//std::make_shared<MenuButton>("Five"),
-						//std::make_shared<MenuButton>("Six"),
-						//std::make_shared<MenuButton>("Seven"),
-						//std::make_shared<MenuButton>("Eight"),
-						//std::make_shared<MenuButton>("Nine") },
-			128 / 8,
-			8,
-			[](std::string str, int yPos, bool inv) { 
-				obdWriteString(&oled, false, 0, yPos, const_cast<char*>(str.c_str()), FONT_8x8, inv, true);
-				},
-			[](int x1, int y1, int x2, int y2, uint8_t colour, uint8_t filled) {
-				obdRectangle(&oled, x1, y1, x2, y2, colour, filled);
-			},
-			[](){
-				obdDumpBuffer(&oled, bbuffer);
-			},
-			Menu::Alignment::Center 
-		};
-
-void showMenu2() { 
-	m1.endMenu(); 
-	shownMenu = ShownMenu::menu2;
-}
-
-Menu m2 {
+	Menu {
 		std::vector<std::shared_ptr<BasicMenuItem>> {
 			std::make_shared<MenuTitle>("MENU 2"),
 			std::make_shared<MenuButton>("Say Hi"),
@@ -61,20 +61,15 @@ Menu m2 {
 			std::make_shared<MenuButton>("Say No") },
 		128 / 8,
 		8,
-		[](std::string str, int yPos, bool inv) { 
-			obdWriteString(&oled, false, 0, yPos, const_cast<char*>(str.c_str()), FONT_8x8, inv, true);
-		},
-		[](int x1, int y1, int x2, int y2, uint8_t colour, uint8_t filled) {
-			obdRectangle(&oled, x1, y1, x2, y2, colour, filled);
-		},
-		[](){
-			obdDumpBuffer(&oled, bbuffer);
-		},
-		Menu::Alignment::Center 
+		Menu::Alignment::Right,
+		1,
+		[](){ 
+			currentMenu->closeMenu();
+			currentMenu = std::make_unique<Menu>(menus[0]);
+		}
+	}
 };
 
-
-struct Setting {};
 
 
 void initPWM() {
@@ -146,18 +141,25 @@ int main(int argc, const char* argv[]) {
 
 	while (1) {
 		volatile int x = 10;
-		switch (shownMenu) {
-			case ShownMenu::menu1: {
-				RotaryEncoder rotary(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ m1.upButton(); }, [](){ m1.downButton(); },[](){ m1.enterButtonDown(); } , [](){ m1.enterButtonUp(); }, [](){});
-				m1();
-				break;
-			}
-			case ShownMenu::menu2: {
-				RotaryEncoder rotary(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ m2.upButton(); }, [](){ m2.downButton(); },[](){ m2.enterButtonDown(); } , [](){m2.enterButtonUp(); }, [](){ shownMenu = ShownMenu::menu1; m2.endMenu(); });
-				m2();
-				break;
-			}
+		currentMenu = std::make_unique<Menu>(Menu(menus[0]));
+		while (1) {
+
+			RotaryEncoder r1 = RotaryEncoder(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ currentMenu->upButton(); }, [](){ currentMenu->downButton(); },[](){ currentMenu->enterButtonDown(); } , [](){ currentMenu->enterButtonUp(); }, [](){ currentMenu->enterButtonPressedLong(); } );
+			
+			(*currentMenu)();
 		}
+		// switch (shownMenu) {
+		// 	case ShownMenu::menu1: {
+		// 		RotaryEncoder rotary(
+		// 		m1();
+		// 		break;
+		// 	}
+		// 	case ShownMenu::menu2: {
+		// 		RotaryEncoder rotary(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ m2.upButton(); }, [](){ m2.downButton(); },[](){ m2.enterButtonDown(); } , [](){m2.enterButtonUp(); }, [](){ shownMenu = ShownMenu::menu1; m2.endMenu(); });
+		// 		m2();
+		// 		break;
+		// 	}
+		// }
 	}
 
 	return 0;

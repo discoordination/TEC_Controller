@@ -12,6 +12,8 @@
 #include <iostream>
 
 
+#pragma message "TODO: Give unique id to Interruptable GPIOs so they can be removed on object destruction.  Disabled etc."
+#pragma message "Move long press to PushButtonGPIO???"
 
 
 class InterruptableGPIO {
