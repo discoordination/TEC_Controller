@@ -8,17 +8,16 @@
 #include <iostream>
 #include <vector>
 #include <functional>
-#include <bitset>
 #include <memory>
-#include <any>
+
 
 OBDISP oled;
 uint8_t bbuffer[1024];
 
 
-const std::function<void(std::string, int, bool)> Menu::drawLineFunction { 
-	[](std::string str, int yPos, bool inv){ 
- 		obdWriteString(&oled, false, 0, yPos, const_cast<char*>(str.c_str()), FONT_8x8, inv, true); 
+const std::function<void(std::string&, int, bool, int)> Menu::drawLineFunction { 
+	[](std::string& str, int yPos, bool inv, int fontCmd) { 
+ 		obdWriteString(&oled, false, 0, yPos, const_cast<char*>(str.c_str()), fontCmd, inv, true); 
 }};
 
 const std::function<void(int,int,int,int,uint8_t,uint8_t)> Menu::drawRectangleFunction {
@@ -47,8 +46,11 @@ std::vector<Menu> menus {
 					std::make_shared<MenuButton>("Two"),
 					std::make_shared<MenuButton>("Three"),
 					std::make_shared<MenuButton>("Four") },
-		128 / 8,
-		8,
+		128,
+		64,
+		12,
+		16,
+		FONT_12x16,
 		Menu::Alignment::Center 
 	},
 
@@ -59,9 +61,12 @@ std::vector<Menu> menus {
 			std::make_shared<MenuButton>("Say Hi"),
 			std::make_shared<MenuButton>("Say Ho"),
 			std::make_shared<MenuButton>("Say No") },
-		128 / 8,
+		128,
+		64,
 		8,
-		Menu::Alignment::Right,
+		8,
+		1,
+		Menu::Alignment::Center,
 		1,
 		[](){ 
 			currentMenu->closeMenu();
@@ -104,7 +109,7 @@ void initDisplay(OBDISP& oled) {
 	while ( obdI2CInit(&oled, OLED::_128x64, OLED::ADDRESS, OLED::FLIP_180, OLED::INVERT, OLED::USE_HW_I2C, OLED::SDA_PIN, OLED::SCL_PIN, OLED::RESET_PIN, I2C::I2CFREQ, i2c1) < 0);
 	obdSetBackBuffer(&oled, bbuffer);
 	// sometimes oled isn't flipped so flip it again.
-	if (!oled.flip) oled.flip;
+	//if (!oled.flip) oled.flip;
 }
 
 
@@ -117,7 +122,7 @@ void init() {
 	stdio_init_all();
 	for(int i = 0; i < 50; ++i) std::cout << std::endl;
 	initI2C();
-	initPWM();
+//	initPWM();
 	initInputs();
 }
 
@@ -135,32 +140,18 @@ int main(int argc, const char* argv[]) {
 	obdWriteString(&oled, 0, 0, 2, (char*)"Up and running.", FONT_8x8, false, true);
 
 	sleep_ms(1500);
+	
 	for(uint i{0}; i < 8; ++i) obdWriteString(&oled, 0, 0, i, (char*)"                ",FONT_8x8, false, true); 
 
 
-
+	currentMenu = std::make_unique<Menu>(Menu(menus[0]));
 	while (1) {
-		volatile int x = 10;
-		currentMenu = std::make_unique<Menu>(Menu(menus[0]));
-		while (1) {
 
-			RotaryEncoder r1 = RotaryEncoder(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ currentMenu->upButton(); }, [](){ currentMenu->downButton(); },[](){ currentMenu->enterButtonDown(); } , [](){ currentMenu->enterButtonUp(); }, [](){ currentMenu->enterButtonPressedLong(); } );
-			
-			(*currentMenu)();
-		}
-		// switch (shownMenu) {
-		// 	case ShownMenu::menu1: {
-		// 		RotaryEncoder rotary(
-		// 		m1();
-		// 		break;
-		// 	}
-		// 	case ShownMenu::menu2: {
-		// 		RotaryEncoder rotary(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ m2.upButton(); }, [](){ m2.downButton(); },[](){ m2.enterButtonDown(); } , [](){m2.enterButtonUp(); }, [](){ shownMenu = ShownMenu::menu1; m2.endMenu(); });
-		// 		m2();
-		// 		break;
-		// 	}
-		// }
+		RotaryEncoder r1 = RotaryEncoder(PIN::ENCODER_PIN1, PIN::ENCODER_PIN2, PIN::ENCODER_BUTTON_PIN, [](){ currentMenu->upButton(); }, [](){ currentMenu->downButton(); },[](){ currentMenu->enterButtonDown(); } , [](){ currentMenu->enterButtonUp(); }, [](){ currentMenu->enterButtonPressedLong(); } );
+		
+		(*currentMenu)();
 	}
 
 	return 0;
 }
+

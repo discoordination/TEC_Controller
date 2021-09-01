@@ -9,8 +9,8 @@
 
 
 #pragma message "TODO: Add new features."
-#pragma message "TODO: Adapt to use different font sizes"
 #pragma message "TODO: Add different types of menu item such as setting adjust"
+#pragma message "TODO: Great refactoring idea.  Add a static or referenced display struct that provides all the information about the display so that you don't have to pass it in for each menu.  This would mean that the constructors for the menus could be shorter and simpler."
 
 
 class BasicMenuItem {
@@ -101,36 +101,40 @@ public:
 	};
 
 // Set these globally.
-private:
-public:
-	const static std::function<void(std::string, int yPos, bool inverted)> drawLineFunction;
+	const static std::function<void(std::string&, int yPos, bool inverted, int fontCmd)> drawLineFunction;
 	const static std::function<void(int x1, int y1, int x2, int y2, uint8_t colour, uint8_t filled)> drawRectangleFunction;
 	const static std::function<void()> dumpBufferFunction;
 
 private:
-	void display();
-	void drawFuncsInitialised();	// Allow to assert menu initialized properly.
 	std::vector<std::shared_ptr<BasicMenuItem>> items;
-	const uint width;	// width of screen in characters.
-	const uint height;	// height of screen in characters
-	uint titleHeight;	// top of scrolling part of the screen below title.
+	const uint widthColumns;	// width of screen in characters.
+	const uint heightRows;	// height of screen in characters
+	const uint widthPixels;
+	const uint heightPixels;
+	const uint fontWidth;
+	const uint fontHeight;
+	const int fontCmd; 				// how to choose the font.
+	const uint byteRowsPerCharacter;	// Write functions are all in byte row format.
+	uint titleHeight;				// top of scrolling part of the screen below title.
 	Alignment alignment;	// Alignment of screen items.
 	volatile int index;			// index of selection on screen.
 
 	uint screenTopItOffs; // top of scrolling section of screen offset.
 	uint screenBottomItOffs; // bottom of screen offset.
-
-	std::function<void()> enterButtonLongPressFunc;
-	bool closing;
-
-	void align(BasicMenuItem& item, Alignment how);
-	void markAllDirty() { 
-		for (int i = titleHeight; i < items.size(); ++i) { items[i]->markDirty(); }
-	}
-
-// set the menu to ignore certain input.
+	
 	bool ignoreRotary;
 	bool ignoreButton;
+	bool closing; // Breaks out of the operator() loop.
+
+	std::function<void()> enterButtonLongPressFunc; // What to do on a long press.  This is not for a particular item but for the whole menu.
+
+	// set the menu to ignore input of certain types.
+
+	void align(BasicMenuItem& item, Alignment how);
+	void draw();					// Redraw the menu. Could be public.
+	void drawFuncsInitialised();	// Allow to assert menu initialized properly.
+	void markAllDirty();			// Menu only draws dirty items.
+
 
 public:
 // Initialize with vector of menu items shared_ptr.
@@ -141,19 +145,22 @@ public:
 // desired menu alignment
 // desired start pos of menu.
 	Menu(	std::vector<std::shared_ptr<BasicMenuItem>> items,
-		 	uint width,
-			uint height,
+		 	uint widthPixels,
+			uint heightPixels,
+			uint fontWidth,
+			uint fontHeight,
+			int fontCmd,
 			Alignment alignment = Alignment::Left,
 			int startIndex = -1,
 			std::function<void()> longPressFunc = {}
-			);
+		);
 
-	Menu(uint width, uint height, Alignment alignment, int startIndex);
+	Menu(uint widthPixels, uint heightPixels, uint fontWidth, uint fontHeight, int fontCmd, Alignment alignment, int startIndex);
 	//Menu();
 	//Menu(const Menu& other);
 
-	void addItem(std::shared_ptr<BasicMenuItem> item);
-	void addItems(std::vector<std::shared_ptr<BasicMenuItem>> items);
+	void addItem(const std::shared_ptr<BasicMenuItem>& item);
+	void addItems(const std::vector<std::shared_ptr<BasicMenuItem>>& items);
 
 	int downButton();
 	int upButton();
@@ -161,8 +168,8 @@ public:
 	int enterButtonUp();
 	int enterButtonPressedLong();
 
-	void operator()();
-	void closeMenu() { closing = true; }
+	void operator()();  // Runs the menu in a loop.
+	void closeMenu() { closing = true; } // Breaks out of the loop.
 };
 
 

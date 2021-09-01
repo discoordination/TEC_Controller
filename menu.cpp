@@ -56,25 +56,46 @@ void BasicMenuItem::alignRight(uint screenWidth) {
 // Menu
 
 
-Menu::Menu(std::vector<std::shared_ptr<BasicMenuItem>> items, uint width, uint height, Alignment alignment, int startIndex, std::function<void()> longPressFunc) :
+Menu::Menu(std::vector<std::shared_ptr<BasicMenuItem>> items, uint widthPixels, uint heightPixels, uint fontWidth, uint fontHeight, int fontCmd, Alignment alignment, int startIndex, std::function<void()> longPressFunc) :
 				items(items),
-				width(width),
-				height(height),
-				alignment(alignment),
-				enterButtonLongPressFunc(longPressFunc),
+				widthColumns(ceil(static_cast<float>(widthPixels) / static_cast<float>(fontWidth))),
+				heightRows(ceil(static_cast<float>(heightPixels) / static_cast<float>(fontHeight))),
+				widthPixels(widthPixels),
+				heightPixels(heightPixels),
+				fontWidth(fontWidth),
+				fontHeight(fontHeight),
+				fontCmd(fontCmd),
+				byteRowsPerCharacter(fontHeight / 8),
 				titleHeight(std::count_if(items.begin(), items.end(), [](auto& item)->bool{ return dynamic_cast<MenuTitle*>(item.get()) != nullptr; })),
+				alignment(alignment),
 				index((startIndex < 0) ? titleHeight : startIndex),  
 				screenTopItOffs(titleHeight),
-				screenBottomItOffs(screenTopItOffs + height - screenTopItOffs),
+				screenBottomItOffs(screenTopItOffs + heightRows - screenTopItOffs),
 				ignoreRotary(false),
 				ignoreButton(false),
-				closing(false) 	{
+				closing(false),
+				enterButtonLongPressFunc(longPressFunc) {
 
 	for (auto&& item : this->items) { align(*item, alignment); }
 	drawFuncsInitialised();
 }
 
-Menu::Menu(uint width, uint height, Alignment alignment, int startIndex = -1) : width(width), height(height), alignment(alignment), index(startIndex), screenTopItOffs(0), screenBottomItOffs(height - 1), ignoreRotary(false), ignoreButton(false), closing(false) {}
+Menu::Menu(	uint widthPixels, uint heightPixels, uint fontWidth, uint fontHeight, int fontCmd, Alignment alignment, int startIndex = -1  ) :
+				widthColumns(ceil(static_cast<double>(widthPixels) / static_cast<double>(fontWidth))),
+				heightRows(ceil(static_cast<float>(heightPixels) / static_cast<float>(fontHeight))),
+				widthPixels(widthPixels),
+				heightPixels(heightPixels),
+				fontWidth(fontWidth),
+				fontHeight(fontHeight),
+				fontCmd(fontCmd),
+				byteRowsPerCharacter(fontHeight / 8),
+				alignment(alignment),
+				index(startIndex),
+				screenTopItOffs(0),
+				screenBottomItOffs(heightRows - 1),
+				ignoreRotary(false),
+				ignoreButton(false),
+				closing(false) {}
 
 //Menu::Menu() : width(0), height(0) {}
 // Menu& Menu::Menu(const Menu& other) {
@@ -90,7 +111,7 @@ void Menu::operator()() {
 
 	std::for_each(items.begin(), items.end(), [](std::shared_ptr<BasicMenuItem> item){ item->markDirty(); });
 
-	display();
+	draw();
 	
 	// ie back button hit or something.
 	while (!closing) {
@@ -103,78 +124,83 @@ void Menu::align(BasicMenuItem& item, Menu::Alignment how) {
 
 // Alignment left make up to length.
 	if (how == Menu::Alignment::Left) {
-		item.alignLeft(width);
+		item.alignLeft(widthColumns);
 	}
 	if (how == Menu::Alignment::Center) {
-		item.alignCenter(width);
+		item.alignCenter(widthColumns);
 	}
 	else if (how == Menu::Alignment::Right) {
-		item.alignRight(width);
+		item.alignRight(widthColumns);
 	}
 }
 
 
-void Menu::addItem(std::shared_ptr<BasicMenuItem> item) {
+void Menu::addItem(const std::shared_ptr<BasicMenuItem>& item) {
+
+	items.push_back(item);
+	auto& addedItem = items.back();
+
 	switch (alignment) {
 	case Alignment::Left:
-		item->alignLeft(width);
+		addedItem->alignLeft(widthColumns);
 		break;
 	case Alignment::Center:
-		item->alignCenter(width);
+		addedItem->alignCenter(widthColumns);
 		break;
 	case Alignment::Right:
-		item->alignRight(width);
-	}
-	items.push_back(item);
-}
-
-
-void Menu::addItems(std::vector<std::shared_ptr<BasicMenuItem>> items) {
-	for (auto &item : items) { 
-		switch (alignment) {
-		case Alignment::Left:
-			item->alignLeft(width);
-			break;
-		case Alignment::Center:
-			item->alignCenter(width);
-			break;
-		case Alignment::Right:
-			item->alignRight(width);
-		}
-		this->items.push_back(item);
+		addedItem->alignRight(widthColumns);
 	}
 }
 
 
-void Menu::display() {
+void Menu::addItems(const std::vector<std::shared_ptr<BasicMenuItem>>& items) {
+
+	for (auto &item : items)
+		this->addItem(item);
+}
+
+
+void Menu::draw() {
 
 // Draw any title lines at the top.
 	for (auto titleIt = items.begin(); titleIt != items.begin() + titleHeight; ++titleIt) {
-		if ((*titleIt).get()->isDirty()) {
-			drawLineFunction((*titleIt)->getContent(), titleIt - items.begin(), false);
+		if ((*titleIt)->isDirty()) {
+
+			auto row = (titleIt - items.begin()) * byteRowsPerCharacter;
+			drawLineFunction((*titleIt)->getContent(), row, false, fontCmd);
 			(*titleIt)->markClean();
 		}
 	}
-
+	// This is for the items.  Between top and bottom it.
 	auto screenTopIt = std::next(std::begin(items), screenTopItOffs);
 	auto screenBottomIt = std::next(std::begin(items), screenBottomItOffs);
 
 	for (auto it = screenTopIt; it != screenBottomIt; ++it) {
-
-		auto pos = it - screenTopIt + titleHeight;		// get scrn pos.
+		
+		auto itemNumber = it - screenTopIt + titleHeight;
+		auto row = itemNumber * byteRowsPerCharacter;		// get scrn pos.
 
 		// Check that there is an item.
-		if (pos >= items.size()) {
-			drawLineFunction(std::string(width, ' '), pos, false);
+		if (itemNumber >= items.size()) {
+
+			auto blankLine = std::string(widthColumns, ' ');
+			drawLineFunction(blankLine, row, false, fontCmd);
 			continue;
 		}
 		// Draw if dirty.
-		auto& item = *(*it).get();
+		auto& item = **it;
+
 		if (item.isDirty()) {
-			drawLineFunction(item.getContent(), pos, pos == index);
+
+			drawLineFunction(item.getContent(), row, row == index * byteRowsPerCharacter, fontCmd);
 			item.markClean();
 		}
 	}
+}
+
+
+void Menu::markAllDirty() { 
+	for (uint i = titleHeight; i < items.size(); ++i) { items[i]->markDirty(); }
 }
 
 
@@ -183,17 +209,17 @@ int Menu::downButton() {
 	if (ignoreRotary) return 0;
 
 	// index is above bottom. // and bottom isn't midway through the screen.
-	if (index < height - 1 && index < items.size() - 1) {
+	if (index < static_cast<int>(heightRows - 1) && index < static_cast<int>(items.size() - 1)) {
 		items[screenTopItOffs + index - 1]->markDirty();
 		items[screenTopItOffs + index++]->markDirty();
-		//index++;
+		
 	// if index is at bottom of screen and there are more items.
 	} else if (/*index == height - 1 && */screenBottomItOffs < items.size()) {
 		screenTopItOffs++;
 		screenBottomItOffs++;
 		markAllDirty();
 	}
-	display();
+	draw();
 	return 1;
 }
 
@@ -203,16 +229,16 @@ int Menu::upButton() {
 	if (ignoreRotary) return 0;
 	
 // Scroll the index up if possibe.
-	if (index > titleHeight) {
+	if (index > static_cast<int>(titleHeight)) {
 		items[screenTopItOffs + --index]->markDirty();
 		items[screenTopItOffs + index - 1]->markDirty();
-		//index--;
+		
 	} else if (screenTopItOffs > titleHeight) {
 		screenTopItOffs--;
 		screenBottomItOffs--;
 		markAllDirty();
 	}
-	display();
+	draw();
 	return 0;
 }
 
@@ -221,9 +247,21 @@ int Menu::enterButtonDown() {
 
 	if (ignoreButton) return 0;
 	ignoreRotary  = true;
-	drawLineFunction(items[index]->getContent(), index, false);
-	drawRectangleFunction(1, height * index, (width * 8) - 1, height * (index + 1) - 1, 255, false); 
+
+	// Item you are pointing at = index - titleHeight + screenTopItOffset
+	auto itemNumber = index - titleHeight + screenTopItOffs;
+	auto itemIt = std::next(std::begin(items), itemNumber);
+
+	// Index is your position on the screen relative to number of drawn rows for font size.
+	// The row on the screen.
+	auto row = index * byteRowsPerCharacter;	
+
+	drawLineFunction((*itemIt)->getContent(), row, false, fontCmd);
+
+	drawRectangleFunction(1, row * 8, widthPixels - 1, ((row + byteRowsPerCharacter) * 8) - 1, 255, false);
+
 	dumpBufferFunction();
+
 	return 1;
 }
 
@@ -232,18 +270,26 @@ int Menu::enterButtonUp() {
 
 	if (ignoreButton) return 0;
 	ignoreRotary = false;
-	drawLineFunction(items[index]->getContent(), index, true);
+
+	auto itemNumber = index - titleHeight + screenTopItOffs;
+	auto itemIt = std::next(std::begin(items), itemNumber);
+	auto row = index * byteRowsPerCharacter;	
+
+	drawLineFunction((*itemIt)->getContent(), row, true, fontCmd);
 	for (uint i = 0; i < 7; ++i) {
-		drawLineFunction(items[index]->getContent(), index, i % 2 == 0);
+		drawLineFunction((*itemIt)->getContent(), row, i % 2 == 0, fontCmd);
 		busy_wait_ms(75);
 	}
-	dynamic_cast<MenuButton*>(items[index].get())->operator()();
+	dynamic_cast<MenuButton*>(itemIt->get())->operator()();
 	return 1;
 }
 
 
 int Menu::enterButtonPressedLong() {
-	enterButtonLongPressFunc();
+
+	if (enterButtonLongPressFunc)
+		enterButtonLongPressFunc();
+
 	return 1;
 }
 

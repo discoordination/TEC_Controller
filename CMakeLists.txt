@@ -10,6 +10,7 @@ add_compile_definitions(RASPBERRY_PI_PICO)
 project(${projname} C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+
 # For exceptions
 set(PICO_CXX_ENABLE_EXCEPTIONS 0)
 set(PICO_CXX_ENABLE_RTTI 1)
@@ -55,6 +56,8 @@ target_link_libraries(	${projname} PRIVATE
 #						hardware_flash
 #						hardware_sync
 
+
+target_compile_options( ${projname} PRIVATE -Wall -Wpedantic -Wunused)
 
 pico_enable_stdio_usb(${projname} 0)
 pico_enable_stdio_uart(${projname} 1)

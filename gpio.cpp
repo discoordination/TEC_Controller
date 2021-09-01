@@ -10,8 +10,8 @@
 // InterruptableGPIO
 
 InterruptableGPIO::InterruptableGPIO(uint8_t pin) : 
-			pin(pin),
-			enabled(true) {
+			enabled(true),
+			pin(pin) {
 	interruptableGPIOs[pin] = this;
 	gpio_set_dir(pin, false);
 }
@@ -89,11 +89,11 @@ bool PushButtonGPIO::debounceTimerCallback(repeating_timer_t* t) {
 			return false;
 		}
 	} else if (gpio->buttonState == ButtonState::Pressed) {
-		gpio->buttonState == ButtonState::NotPressed;
+		gpio->buttonState = ButtonState::NotPressed;
 		gpio_set_irq_enabled_with_callback(gpio->pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
 		return false;
 	} else {
-		gpio->buttonState == ButtonState::Pressed;
+		gpio->buttonState = ButtonState::Pressed;
 		gpio_set_irq_enabled_with_callback(gpio->pin, GPIO_IRQ_EDGE_FALL + GPIO_IRQ_EDGE_RISE, true, &InterruptableGPIO::gpioInterruptHandler);
 		return false;
 	}
@@ -184,10 +184,10 @@ const std::array<std::array<uint8_t, 4>, 7> ttable {
 RotaryEncoder::RotaryEncoder(const uint8_t p1, const uint8_t p2, const uint8_t buttonPin, std::function<void()> ccFunction, std::function<void()> cFunction, std::function<void()> butDownFunc, std::function<void()> butUpFunc, std::function<void()> longPressFunc = {}) : 
 					p1(p1, this),
 					p2(p2, this),
+					button(buttonPin, butDownFunc, butUpFunc, longPressFunc),
 					state(R_START),
 					ccFunction(ccFunction),
-					cFunction(cFunction),
-					button(buttonPin, butDownFunc, butUpFunc, longPressFunc)
+					cFunction(cFunction)
 {}
 
 RotaryEncoder::RotaryEncoder(uint8_t p1, uint8_t p2, std::function<void()> ccFunction, std::function<void()> cFunction) : 
