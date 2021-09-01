@@ -6,24 +6,36 @@
 #include <string>
 #include <functional>
 #include <memory>
+#include <sstream>
+#include <iomanip>
 
 
 #pragma message "TODO: Add new features."
+#pragma message "TODO: Fix crash on setting onclick"
 #pragma message "TODO: Add different types of menu item such as setting adjust"
 #pragma message "TODO: Great refactoring idea.  Add a static or referenced display struct that provides all the information about the display so that you don't have to pass it in for each menu.  This would mean that the constructors for the menus could be shorter and simpler."
 
 
+namespace MenuUtils {
+	enum class Alignment {
+		Left, Center, Right
+	};
+}
+
+
+
+
+
+// BasicMenuItem
+
 class BasicMenuItem {
 
 private:
-	std::string content; // Mutable so as it can be aligned by the menu.
 	volatile bool dirty;
 
-	void removeLeadingSpace();
-	void removeTrailingSpace();
-
 protected:
-	BasicMenuItem(const std::string& content) : content(content), dirty(true) {}
+	std::string content; // Mutable so as it can be aligned by the menu.
+	BasicMenuItem(const std::string& content) : dirty(true), content(content) {}
 	virtual ~BasicMenuItem() {}
 
 public:
@@ -32,19 +44,16 @@ public:
 	virtual bool selectable() const = 0;
 	virtual bool scrollable() const = 0;
 
-	void alignLeft(uint screenWidth);
-	void alignCenter(uint screenWidth);
-	void alignRight(uint screenWidth);
+	virtual void align(const uint screenWidth, const MenuUtils::Alignment align);
 
 	void markDirty() { dirty = true; }
 	void markClean() { dirty = false; }
 	bool isDirty() const { return dirty; }
-
 };
 
 
-class MenuButton : public BasicMenuItem {
 
+class MenuButton : public BasicMenuItem {
 
 	std::function<void()> onClick;
 	// you can choose these functions to do something funky but then call the onClick function.
@@ -61,7 +70,10 @@ public:
 	void operator()() const {  if (onClick) onClick(); }
 };
 
+
+
 class MenuTitle : public BasicMenuItem {
+
 
 public:
 	MenuTitle(const std::string& content) :
@@ -70,6 +82,54 @@ public:
 	bool selectable() const override { return false; }
 	bool scrollable() const override { return false; }
 };
+
+
+
+
+#pragma message "TODO: specialize for double and float so that only they have nDecimal places"
+template <typename T>
+class MenuSetting : public BasicMenuItem {
+
+	T& settingRef;
+	const T min, max;
+	const bool showSign;
+	const uint8_t nDecimalPlaces;
+
+public:
+	MenuSetting(const std::string& name, T& settingRef, const T min, const T max, bool showSign = false, const uint8_t nDecimalPlaces = 0) : 
+		BasicMenuItem(name),
+		settingRef(settingRef),
+		min(min),
+		max(max),
+		showSign(showSign),
+		nDecimalPlaces(nDecimalPlaces)
+	{}
+
+	void align(const uint screenWidth, const MenuUtils::Alignment alignment) override;
+
+	bool selectable() const override { return true; }
+	bool scrollable() const override { return true; }
+	//void operator()() const {  if (onClick) onClick(); }
+};
+
+
+#include <iostream>
+template <typename T>
+void MenuSetting<T>::align(const uint screenWidth, const MenuUtils::Alignment alignment) {
+	// ignore aligment for this one we will just stick content on the right and the value on the left.
+	BasicMenuItem::align(screenWidth, MenuUtils::Alignment::Left);  // aligns the title.
+	std::stringstream stream;
+	if (showSign) stream << std::showpos;
+	stream << std::fixed << std::setprecision(nDecimalPlaces) << settingRef << std::endl;
+	std::string val;
+	stream >> val;
+	// std::cout << "Content length: " << content.length() << std::endl;
+	// std::cout << "Content: " << content << ".\n";
+	// std::cout << "val: " << std::showpos << val << std::endl;
+	//content.insert(content.length(), std::string(screenWidth - content.length' '));
+	content.insert(content.length() - val.length(), val);
+}
+
 
 
 
@@ -96,9 +156,6 @@ public:
 class Menu {
 
 public:
-	enum class Alignment {
-		Left, Center, Right
-	};
 
 // Set these globally.
 	const static std::function<void(std::string&, int yPos, bool inverted, int fontCmd)> drawLineFunction;
@@ -116,7 +173,7 @@ private:
 	const int fontCmd; 				// how to choose the font.
 	const uint byteRowsPerCharacter;	// Write functions are all in byte row format.
 	uint titleHeight;				// top of scrolling part of the screen below title.
-	Alignment alignment;	// Alignment of screen items.
+	MenuUtils::Alignment alignment;	// Alignment of screen items.
 	volatile int index;			// index of selection on screen.
 
 	uint screenTopItOffs; // top of scrolling section of screen offset.
@@ -130,7 +187,7 @@ private:
 
 	// set the menu to ignore input of certain types.
 
-	void align(BasicMenuItem& item, Alignment how);
+	void align(BasicMenuItem& item, MenuUtils::Alignment how);
 	void draw();					// Redraw the menu. Could be public.
 	void drawFuncsInitialised();	// Allow to assert menu initialized properly.
 	void markAllDirty();			// Menu only draws dirty items.
@@ -150,12 +207,12 @@ public:
 			uint fontWidth,
 			uint fontHeight,
 			int fontCmd,
-			Alignment alignment = Alignment::Left,
+			MenuUtils::Alignment alignment = MenuUtils::Alignment::Left,
 			int startIndex = -1,
 			std::function<void()> longPressFunc = {}
 		);
 
-	Menu(uint widthPixels, uint heightPixels, uint fontWidth, uint fontHeight, int fontCmd, Alignment alignment, int startIndex);
+	Menu(uint widthPixels, uint heightPixels, uint fontWidth, uint fontHeight, int fontCmd, MenuUtils::Alignment alignment, int startIndex);
 	//Menu();
 	//Menu(const Menu& other);
 

@@ -30,50 +30,13 @@ const std::function<void()> Menu::dumpBufferFunction {
 }};
 
 
-struct Settings {};
+struct Settings {
+	int speed = 100;
+	double height = 120.0;
+} s;
 
 std::unique_ptr<Menu> currentMenu;
 //Menu* currentMenu;
-
-std::vector<Menu> menus {
-	Menu { 
-		std::vector<std::shared_ptr<BasicMenuItem>> { 
-					std::make_shared<MenuTitle>("MENU"),
-					std::make_shared<MenuButton>("One", [](){
-						currentMenu->closeMenu();
-						currentMenu = std::make_unique<Menu>(menus[1]);
-					}),
-					std::make_shared<MenuButton>("Two"),
-					std::make_shared<MenuButton>("Three"),
-					std::make_shared<MenuButton>("Four") },
-		128,
-		64,
-		12,
-		16,
-		FONT_12x16,
-		Menu::Alignment::Center 
-	},
-
-
-	Menu {
-		std::vector<std::shared_ptr<BasicMenuItem>> {
-			std::make_shared<MenuTitle>("MENU 2"),
-			std::make_shared<MenuButton>("Say Hi"),
-			std::make_shared<MenuButton>("Say Ho"),
-			std::make_shared<MenuButton>("Say No") },
-		128,
-		64,
-		8,
-		8,
-		1,
-		Menu::Alignment::Center,
-		1,
-		[](){ 
-			currentMenu->closeMenu();
-			currentMenu = std::make_unique<Menu>(menus[0]);
-		}
-	}
-};
 
 
 
@@ -142,6 +105,47 @@ int main(int argc, const char* argv[]) {
 	sleep_ms(1500);
 	
 	for(uint i{0}; i < 8; ++i) obdWriteString(&oled, 0, 0, i, (char*)"                ",FONT_8x8, false, true); 
+
+
+	std::vector<Menu> menus {
+		Menu { 
+			std::vector<std::shared_ptr<BasicMenuItem>> { 
+						std::make_shared<MenuTitle>("MENU"),
+						std::make_shared<MenuButton>("One", [&menus](){
+							currentMenu->closeMenu();
+							currentMenu = std::make_unique<Menu>(menus[1]);
+						}),
+						std::make_shared<MenuSetting<int>>("Spd:", s.speed, 0, 200, true),
+						std::make_shared<MenuButton>("Three"),
+						std::make_shared<MenuButton>("Four") },
+			128,
+			64,
+			8,
+			8,
+			1,
+			MenuUtils::Alignment::Center 
+		},
+
+
+		Menu {
+			std::vector<std::shared_ptr<BasicMenuItem>> {
+				std::make_shared<MenuTitle>("MENU 2"),
+				std::make_shared<MenuButton>("Say Hi"),
+				std::make_shared<MenuButton>("Say Ho"),
+				std::make_shared<MenuButton>("Say No") },
+			128,
+			64,
+			12,
+			16,
+			FONT_12x16,
+			MenuUtils::Alignment::Center,
+			1,
+			[&menus](){ 
+				currentMenu->closeMenu();
+				currentMenu = std::make_unique<Menu>(menus[0]);
+			}
+		}
+	};
 
 
 	currentMenu = std::make_unique<Menu>(Menu(menus[0]));

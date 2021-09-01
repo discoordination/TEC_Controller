@@ -1,54 +1,91 @@
 #include "menu.hpp"
 
-#include <cmath> // Needed for floor and ceil in align.
+
 #include <algorithm> // Needed to operate on vectors.
 #include <iostream>
+#include <cmath>
+
+
+namespace {
+	std::string& removeTrailingSpace(std::string& str) {
+
+		auto index = str.find_last_not_of(' ');
+		if (index != std::string::npos) {
+			str.erase(index + 1, str.length() - index);
+		}
+		return str;
+	}
+
+
+	std::string& removeLeadingSpace(std::string& str) {
+
+		auto index = str.find_first_not_of(' ');
+		if (index != std::string::npos) {
+			str.erase(0, index);
+		}
+		return str;
+	}
+
+
+	std::string& alignLeft(std::string& str, const uint width) {
+		
+		removeLeadingSpace(str);
+		if (str.length() < width) {
+			str.append(width - str.length(), ' ');
+		}
+		return str;
+	}
+
+
+	std::string& alignCenter(std::string& str, const uint width) {
+		
+		removeLeadingSpace(str);
+		removeTrailingSpace(str);
+
+		if (str.length() < width) {
+			float makeUp = width - str.length();
+			str.insert(0, floor(makeUp * 0.5), ' ');
+			str.append(ceil(makeUp * 0.5), ' ');
+		}
+
+		return str;
+	}
+
+
+	std::string& alignRight(std::string& str, const uint width) {
+
+		removeLeadingSpace(str);
+		removeTrailingSpace(str);
+		
+		if (str.length() < width) {
+			str.insert(0, width - str.length(), ' '); 
+		}
+
+		return str;
+	}
+}
+
+
 
 
 // BasicMenuItem
 
-void BasicMenuItem::removeTrailingSpace() {
-	// Remove any trailing space.
-	auto index = content.find_last_not_of(' ');
-	if (index != std::string::npos) {
-		content.erase(index + 1, content.length() - index);
-	}
-}
 
-void BasicMenuItem::removeLeadingSpace() {
-	// Remove any leading space.
-	auto index = content.find_first_not_of(' ');
-	if (index != std::string::npos) {
-		content.erase(0, index);
-	}
-}
-
-void BasicMenuItem::alignLeft(uint screenWidth) {
-	removeLeadingSpace();
-	if (content.length() < screenWidth) {
-		content.append(screenWidth - content.length(), ' ');
+void BasicMenuItem::align(const uint screenWidth, const MenuUtils::Alignment alignment) {
+	switch (alignment) {
+		case MenuUtils::Alignment::Left:
+			alignLeft(content, screenWidth);
+			break;
+		case MenuUtils::Alignment::Center:
+			alignCenter(content, screenWidth);
+			break;
+		case MenuUtils::Alignment::Right:
+			alignRight(content, screenWidth);
 	}
 }
 
 
-void BasicMenuItem::alignCenter(uint screenWidth) {
-	removeLeadingSpace();
-	removeTrailingSpace();
-	if (content.length() < screenWidth) {
-		float makeUp = screenWidth - content.length();
-		content.insert(0, floor(makeUp * 0.5), ' ');
-		content.append(ceil(makeUp * 0.5), ' ');
-	}
-}
-
-
-void BasicMenuItem::alignRight(uint screenWidth) {
-	removeLeadingSpace();
-	removeTrailingSpace();
-	if (content.length() < screenWidth) {
-		content.insert(0, screenWidth - content.length(), ' '); 
-	}
-}
+// MenuSetting
 
 
 
@@ -56,7 +93,7 @@ void BasicMenuItem::alignRight(uint screenWidth) {
 // Menu
 
 
-Menu::Menu(std::vector<std::shared_ptr<BasicMenuItem>> items, uint widthPixels, uint heightPixels, uint fontWidth, uint fontHeight, int fontCmd, Alignment alignment, int startIndex, std::function<void()> longPressFunc) :
+Menu::Menu(std::vector<std::shared_ptr<BasicMenuItem>> items, uint widthPixels, uint heightPixels, uint fontWidth, uint fontHeight, int fontCmd, MenuUtils::Alignment alignment, int startIndex, std::function<void()> longPressFunc) :
 				items(items),
 				widthColumns(ceil(static_cast<float>(widthPixels) / static_cast<float>(fontWidth))),
 				heightRows(ceil(static_cast<float>(heightPixels) / static_cast<float>(fontHeight))),
@@ -80,7 +117,7 @@ Menu::Menu(std::vector<std::shared_ptr<BasicMenuItem>> items, uint widthPixels, 
 	drawFuncsInitialised();
 }
 
-Menu::Menu(	uint widthPixels, uint heightPixels, uint fontWidth, uint fontHeight, int fontCmd, Alignment alignment, int startIndex = -1  ) :
+Menu::Menu(	uint widthPixels, uint heightPixels, uint fontWidth, uint fontHeight, int fontCmd, MenuUtils::Alignment alignment, int startIndex = -1  ) :
 				widthColumns(ceil(static_cast<double>(widthPixels) / static_cast<double>(fontWidth))),
 				heightRows(ceil(static_cast<float>(heightPixels) / static_cast<float>(fontHeight))),
 				widthPixels(widthPixels),
@@ -120,36 +157,16 @@ void Menu::operator()() {
 }
 
 
-void Menu::align(BasicMenuItem& item, Menu::Alignment how) {
+void Menu::align(BasicMenuItem& item, MenuUtils::Alignment how) {
 
-// Alignment left make up to length.
-	if (how == Menu::Alignment::Left) {
-		item.alignLeft(widthColumns);
-	}
-	if (how == Menu::Alignment::Center) {
-		item.alignCenter(widthColumns);
-	}
-	else if (how == Menu::Alignment::Right) {
-		item.alignRight(widthColumns);
-	}
+	item.align(widthColumns, how);
 }
 
 
 void Menu::addItem(const std::shared_ptr<BasicMenuItem>& item) {
 
 	items.push_back(item);
-	auto& addedItem = items.back();
-
-	switch (alignment) {
-	case Alignment::Left:
-		addedItem->alignLeft(widthColumns);
-		break;
-	case Alignment::Center:
-		addedItem->alignCenter(widthColumns);
-		break;
-	case Alignment::Right:
-		addedItem->alignRight(widthColumns);
-	}
+	items.back()->align(widthColumns, alignment);
 }
 
 
